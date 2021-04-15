@@ -19,4 +19,4 @@ type CronStore struct {
 	entry map[uint]cron.EntryID
 }
 
-var cronStore = &CronStore{entry: make(map[uint]cron.EntryID, 0)}
+var cronStore = &CronStore{entry: make(map[uint]cron.EntryID)}

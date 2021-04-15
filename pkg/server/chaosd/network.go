@@ -248,6 +248,9 @@ func (s *Server) recoverTC(uid string, device string) error {
 	}
 
 	tcRules, err := s.tcRule.FindByDevice(context.Background(), device)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	tcs, err := core.TCRuleList(tcRules).ToTCs()
 	if err != nil {

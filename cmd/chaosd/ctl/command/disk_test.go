@@ -148,6 +148,11 @@ func TestServer_DiskPayload(t *testing.T) {
 						Path:            "temp",
 						FillByFallocate: true,
 					})
+
+					if err != nil {
+						t.Error("ExecuteAttack failed", err)
+					}
+
 					_, err = s.ExecuteAttack(chaosd.DiskAttack, tt.command)
 					if (err != nil) != tt.wantErr {
 						t.Errorf("DiskPayload() error = %v, wantErr %v", err, tt.wantErr)
