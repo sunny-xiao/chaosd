@@ -37,6 +37,7 @@ const (
 	DiskAttack    = "disk"
 	HostAttack    = "host"
 	JVMAttack     = "jvm"
+	FileAttack    = "file"
 )
 
 const (
@@ -89,6 +90,8 @@ func (exp *Experiment) GetRequestCommand() (AttackConfig, error) {
 		attackConfig = &StressCommand{}
 	case DiskAttack:
 		attackConfig = &DiskOption{}
+	case FileAttack:
+		attackConfig = &FileCommand{}
 	default:
 		return nil, perr.Errorf("chaos experiment kind %s not found", exp.Kind)
 	}

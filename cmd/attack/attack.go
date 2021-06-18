@@ -28,6 +28,7 @@ func NewAttackCommand() *cobra.Command {
 		NewDiskAttackCommand(),
 		NewHostAttackCommand(),
 		NewJVMAttackCommand(),
+		NewFileAttackCommand(),
 	)
 
 	return cmd
