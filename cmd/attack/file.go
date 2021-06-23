@@ -41,6 +41,7 @@ func NewFileAttackCommand() *cobra.Command {
 
 	cmd.AddCommand(
 		NewFileCreateCommand(dep, options),
+		NewFileModifyPrivilegeCommand(dep, options),
 	)
 
 	return cmd
@@ -62,6 +63,24 @@ func NewFileCreateCommand(dep fx.Option, options *core.FileCommand) *cobra.Comma
 	cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "create directory based on dirname")
 	cmd.Flags().StringVarP(&options.DestDir, "destdir", "", "", "create a file or directory tp the specified destdir")
 	// owner TODO
+
+	return cmd
+}
+
+func NewFileModifyPrivilegeCommand(dep fx.Option, options *core.FileCommand) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "modify",
+		Short: "modify file privilege",
+		
+		Run: func(cmd *cobra.Command, args []string) {
+			options.Action = core.FileModifyPrivilegeAction
+            utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
+		},
+	}
+
+	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "file to been change privilege")
+	cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "dir to been change privilege")
+	cmd.Flags().Uint32VarP(&options.Privilege, "privilege", "p", 0, "privilege to been update")
 
 	return cmd
 }
