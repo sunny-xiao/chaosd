@@ -18,11 +18,9 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"go.uber.org/zap"
-
 	"github.com/chaos-mesh/chaosd/pkg/core"
 )
 
@@ -53,17 +51,15 @@ func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error)
 
 func (s *Server) createFile(attack *core.FileCommand, uid string) error {
 
-	createCmd := ""
+	var err error
 	if len(attack.FileName) > 0 {
-		createCmd = "touch " + attack.DestDir + attack.FileName
+		_, err = os.Create(attack.DestDir + attack.FileName)
 	} else if len(attack.DirName) > 0 {
-		createCmd = "mkdir " + attack.DestDir + attack.DirName
+		err = os.Mkdir(attack.DestDir+attack.DirName, os.ModePerm)
 	}
 
-	cmd := exec.Command("/bin/bash", "-c", createCmd) // #nosec
-	stdout, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Error(cmd.String()+string(stdout), zap.Error(err))
+		log.Error("create file/dir faild", zap.Error(err))
 		return errors.WithStack(err)
 	}
 
@@ -124,17 +120,15 @@ func (fileAttack) Recover(exp core.Experiment, env Environment) error {
 
 func (s *Server) recoverCreateFile(attack *core.FileCommand) error {
 
-	deleteCmd := ""
+	var err error
 	if len(attack.FileName) > 0 {
-		deleteCmd = "rm -rf " + attack.DestDir + attack.FileName
+		err = os.Remove(attack.DestDir + attack.FileName)
 	} else if len(attack.DirName) > 0 {
-		deleteCmd = "rm -rf " + attack.DestDir + attack.DirName
+		err = os.RemoveAll(attack.DestDir + attack.DirName)
 	}
 
-	cmd := exec.Command("/bin/bash", "-c", deleteCmd) // #nosec
-	stdout, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Error(cmd.String()+string(stdout), zap.Error(err))
+		log.Error("delete file/dir faild", zap.Error(err))
 		return errors.WithStack(err)
 	}
 	return nil
