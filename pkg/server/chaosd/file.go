@@ -18,10 +18,11 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+
+	"github.com/chaos-mesh/chaosd/pkg/core"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"go.uber.org/zap"
-	"github.com/chaos-mesh/chaosd/pkg/core"
 )
 
 type fileAttack struct{}
@@ -42,6 +43,14 @@ func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error)
 		}
 	case core.FileModifyPrivilegeAction:
 		if err = env.Chaos.modifyFilePrivilege(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileDeleteAction:
+		if err = env.Chaos.deleteFile(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileRenameAction:
+		if err = env.Chaos.renameFile(attack, env.AttackUid); err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -72,10 +81,10 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 
 	if len(attack.FileName) != 0 {
 		/*var err error
-        FileMode, err = getFileMode(attack.FileName)
-        if err != nil {
-        	return errors.WithStack(err)
-		}*/
+		        FileMode, err = getFileMode(attack.FileName)
+		        if err != nil {
+		        	return errors.WithStack(err)
+				}*/
 
 		t := os.FileMode(attack.Privilege)
 		fmt.Println(t)
@@ -83,7 +92,7 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 		if err := os.Chmod(attack.FileName, t); err != nil {
 			return errors.WithStack(err)
 		}
-	}else if len(attack.DirName) != 0 {
+	} else if len(attack.DirName) != 0 {
 		/*var err error
 		DirMode, err = getFileMode(attack.DirName)
 		if err != nil {
@@ -93,6 +102,51 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 		if err := os.Chmod(attack.DirName, os.FileMode(attack.Privilege)); err != nil {
 			return errors.WithStack(err)
 		}
+	}
+
+	return nil
+}
+
+func mvFile(sfile string, dfile string) error {
+
+	cmd := "mv " + sfile + " " + dfile
+	mvCmd := exec.Command("/bin/bash", "-c", cmd) // #nosec
+
+	stdout, err := mvCmd.CombinedOutput()
+	if err != nil {
+		log.Error(mvCmd.String()+string(stdout), zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func (s *Server) deleteFile(attack *core.FileCommand, uid string) error {
+
+	var err error
+	if len(attack.FileName) > 0 {
+		backFile := attack.DestDir + attack.FileName + "." + uid
+		err = mvFile(attack.DestDir+attack.FileName, backFile)
+	} else if len(attack.DirName) > 0 {
+		backDir := attack.DestDir + attack.DirName + "." + uid
+		err = mvFile(attack.DestDir+attack.DirName, backDir)
+	}
+
+	if err != nil {
+		log.Error("create file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func (s *Server) renameFile(attack *core.FileCommand, uid string) error {
+
+	err := mvFile(attack.SourceFile, attack.DstFile)
+
+	if err != nil {
+		log.Error("create file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -112,6 +166,14 @@ func (fileAttack) Recover(exp core.Experiment, env Environment) error {
 		}
 	case core.FileModifyPrivilegeAction:
 		if err = env.Chaos.recoverModifyPrivilege(attack); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileDeleteAction:
+		if err = env.Chaos.recoverDeleteFile(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileRenameAction:
+		if err = env.Chaos.recoverRenameFile(attack); err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -140,7 +202,7 @@ func (s *Server) recoverModifyPrivilege(attack *core.FileCommand) error {
 		if err := os.Chmod(attack.FileName, os.FileMode(FileMode)); err != nil {
 			return errors.WithStack(err)
 		}
-	}else if len(attack.DirName) != 0 {
+	} else if len(attack.DirName) != 0 {
 		if err := os.Chmod(attack.FileName, os.FileMode(DirMode)); err != nil {
 			return errors.WithStack(err)
 		}
@@ -148,7 +210,6 @@ func (s *Server) recoverModifyPrivilege(attack *core.FileCommand) error {
 
 	return nil
 }
-
 
 func getFileMode(path string) (int, error) {
 	cmd := fmt.Sprintf("stat -c %a %s", path)
@@ -162,4 +223,33 @@ func getFileMode(path string) (int, error) {
 	s := string(stdout)
 	d, _ := strconv.Atoi(s)
 	return d, nil
+}
+
+func (s *Server) recoverDeleteFile(attack *core.FileCommand, uid string) error {
+	var err error
+	if len(attack.FileName) > 0 {
+		backFile := attack.DestDir + attack.FileName + "." + uid
+		err = mvFile(backFile, attack.DestDir+attack.FileName)
+	} else if len(attack.DirName) > 0 {
+		backDir := attack.DestDir + attack.DirName + "." + uid
+		err = mvFile(backDir, attack.DestDir+attack.DirName)
+	}
+
+	if err != nil {
+		log.Error("recover delete file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func (s *Server) recoverRenameFile(attack *core.FileCommand) error {
+	err := mvFile(attack.DstFile, attack.SourceFile)
+
+	if err != nil {
+		log.Error("recover rename file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
 }

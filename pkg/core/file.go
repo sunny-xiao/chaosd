@@ -15,23 +15,28 @@ package core
 
 import (
 	"encoding/json"
+
 	"github.com/pingcap/errors"
 )
 
 type FileCommand struct {
 	CommonAttackConfig
 
-	FileName string
-	DirName  string
-	DestDir  string
-	Privilege uint32
+	FileName   string
+	DirName    string
+	DestDir    string
+	Privilege  uint32
+	SourceFile string
+	DstFile    string
 }
 
 var _ AttackConfig = &FileCommand{}
 
 const (
-	FileCreateAction = "create"
+	FileCreateAction          = "create"
 	FileModifyPrivilegeAction = "modify"
+	FileDeleteAction          = "delete"
+	FileRenameAction          = "rename"
 )
 
 func (n *FileCommand) Validate() error {
@@ -42,9 +47,13 @@ func (n *FileCommand) Validate() error {
 	case FileCreateAction:
 		return n.validFileCreate()
 	case FileModifyPrivilegeAction:
-        return n.validFileModify()
+		return n.validFileModify()
+	case FileDeleteAction:
+		return n.validFileDelete()
+	case FileRenameAction:
+		return n.validFileRename()
 	default:
-		return errors.Errorf("network action %s not supported", n.Action)
+		return errors.Errorf("file action %s not supported", n.Action)
 	}
 }
 
@@ -59,6 +68,18 @@ func (n *FileCommand) validFileModify() error {
 
 	if n.Privilege == 0 {
 		return errors.New("file privilege can not null")
+	}
+
+	return nil
+}
+
+func (n *FileCommand) validFileDelete() error {
+	return nil
+}
+
+func (n *FileCommand) validFileRename() error {
+	if len(n.SourceFile) == 0 || len(n.DstFile) == 0 {
+		return errors.New("source file and destination file must have value")
 	}
 
 	return nil
