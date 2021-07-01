@@ -107,29 +107,15 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 	return nil
 }
 
-func mvFile(sfile string, dfile string) error {
-
-	cmd := "mv " + sfile + " " + dfile
-	mvCmd := exec.Command("/bin/bash", "-c", cmd) // #nosec
-
-	stdout, err := mvCmd.CombinedOutput()
-	if err != nil {
-		log.Error(mvCmd.String()+string(stdout), zap.Error(err))
-		return errors.WithStack(err)
-	}
-
-	return nil
-}
-
 func (s *Server) deleteFile(attack *core.FileCommand, uid string) error {
 
 	var err error
 	if len(attack.FileName) > 0 {
 		backFile := attack.DestDir + attack.FileName + "." + uid
-		err = mvFile(attack.DestDir+attack.FileName, backFile)
+		err = os.Rename(attack.DestDir+attack.FileName, backFile)
 	} else if len(attack.DirName) > 0 {
 		backDir := attack.DestDir + attack.DirName + "." + uid
-		err = mvFile(attack.DestDir+attack.DirName, backDir)
+		err = os.Rename(attack.DestDir+attack.DirName, backDir)
 	}
 
 	if err != nil {
@@ -142,7 +128,7 @@ func (s *Server) deleteFile(attack *core.FileCommand, uid string) error {
 
 func (s *Server) renameFile(attack *core.FileCommand, uid string) error {
 
-	err := mvFile(attack.SourceFile, attack.DstFile)
+	err := os.Rename(attack.SourceFile, attack.DstFile)
 
 	if err != nil {
 		log.Error("create file/dir faild", zap.Error(err))
@@ -229,10 +215,10 @@ func (s *Server) recoverDeleteFile(attack *core.FileCommand, uid string) error {
 	var err error
 	if len(attack.FileName) > 0 {
 		backFile := attack.DestDir + attack.FileName + "." + uid
-		err = mvFile(backFile, attack.DestDir+attack.FileName)
+		err = os.Rename(backFile, attack.DestDir+attack.FileName)
 	} else if len(attack.DirName) > 0 {
 		backDir := attack.DestDir + attack.DirName + "." + uid
-		err = mvFile(backDir, attack.DestDir+attack.DirName)
+		err = os.Rename(backDir, attack.DestDir+attack.DirName)
 	}
 
 	if err != nil {
@@ -244,7 +230,7 @@ func (s *Server) recoverDeleteFile(attack *core.FileCommand, uid string) error {
 }
 
 func (s *Server) recoverRenameFile(attack *core.FileCommand) error {
-	err := mvFile(attack.DstFile, attack.SourceFile)
+	err := os.Rename(attack.DstFile, attack.SourceFile)
 
 	if err != nil {
 		log.Error("recover rename file/dir faild", zap.Error(err))

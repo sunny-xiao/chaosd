@@ -93,6 +93,7 @@ func NewFileDeleteCommand(dep fx.Option, options *core.FileCommand) *cobra.Comma
 
 		Run: func(cmd *cobra.Command, args []string) {
 			options.Action = core.FileDeleteAction
+			options.CompleteDefaults()
 			utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
 		},
 	}
