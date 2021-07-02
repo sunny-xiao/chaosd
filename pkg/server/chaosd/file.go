@@ -41,6 +41,14 @@ func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error)
 		if err = env.Chaos.modifyFilePrivilege(attack, env.AttackUid); err != nil {
 			return errors.WithStack(err)
 		}
+	case core.FileDeleteAction:
+		if err = env.Chaos.deleteFile(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileRenameAction:
+		if err = env.Chaos.renameFile(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return nil
@@ -87,6 +95,37 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 	return nil
 }
 
+func (s *Server) deleteFile(attack *core.FileCommand, uid string) error {
+
+	var err error
+	if len(attack.FileName) > 0 {
+		backFile := attack.DestDir + attack.FileName + "." + uid
+		err = os.Rename(attack.DestDir+attack.FileName, backFile)
+	} else if len(attack.DirName) > 0 {
+		backDir := attack.DestDir + attack.DirName + "." + uid
+		err = os.Rename(attack.DestDir+attack.DirName, backDir)
+	}
+
+	if err != nil {
+		log.Error("create file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func (s *Server) renameFile(attack *core.FileCommand, uid string) error {
+
+	err := os.Rename(attack.SourceFile, attack.DstFile)
+
+	if err != nil {
+		log.Error("create file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
 func (fileAttack) Recover(exp core.Experiment, env Environment) error {
 	config, err := exp.GetRequestCommand()
 	if err != nil {
@@ -101,6 +140,14 @@ func (fileAttack) Recover(exp core.Experiment, env Environment) error {
 		}
 	case core.FileModifyPrivilegeAction:
 		if err = env.Chaos.recoverModifyPrivilege(attack); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileDeleteAction:
+		if err = env.Chaos.recoverDeleteFile(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileRenameAction:
+		if err = env.Chaos.recoverRenameFile(attack); err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -132,5 +179,35 @@ func (s *Server) recoverModifyPrivilege(attack *core.FileCommand) error {
 		log.Error(string(output), zap.Error(err))
 		return errors.WithStack(err)
 	}
+
+	return nil
+}
+
+func (s *Server) recoverDeleteFile(attack *core.FileCommand, uid string) error {
+	var err error
+	if len(attack.FileName) > 0 {
+		backFile := attack.DestDir + attack.FileName + "." + uid
+		err = os.Rename(backFile, attack.DestDir+attack.FileName)
+	} else if len(attack.DirName) > 0 {
+		backDir := attack.DestDir + attack.DirName + "." + uid
+		err = os.Rename(backDir, attack.DestDir+attack.DirName)
+	}
+
+	if err != nil {
+		log.Error("recover delete file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func (s *Server) recoverRenameFile(attack *core.FileCommand) error {
+	err := os.Rename(attack.DstFile, attack.SourceFile)
+
+	if err != nil {
+		log.Error("recover rename file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
 	return nil
 }

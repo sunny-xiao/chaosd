@@ -42,6 +42,8 @@ func NewFileAttackCommand() *cobra.Command {
 	cmd.AddCommand(
 		NewFileCreateCommand(dep, options),
 		NewFileModifyPrivilegeCommand(dep, options),
+		NewFileDeleteCommand(dep, options),
+		NewFileRenameCommand(dep, options),
 	)
 
 	return cmd
@@ -61,7 +63,7 @@ func NewFileCreateCommand(dep fx.Option, options *core.FileCommand) *cobra.Comma
 
 	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "create file based on filename")
 	cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "create directory based on dirname")
-	cmd.Flags().StringVarP(&options.DestDir, "destdir", "", "", "create a file or directory tp the specified destdir")
+	cmd.Flags().StringVarP(&options.DestDir, "destdir", "", "", "create a file or directory to the specified destdir")
 	// owner TODO
 
 	return cmd
@@ -69,18 +71,53 @@ func NewFileCreateCommand(dep fx.Option, options *core.FileCommand) *cobra.Comma
 
 func NewFileModifyPrivilegeCommand(dep fx.Option, options *core.FileCommand) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "modify",
+		Use:   "modify",
 		Short: "modify file privilege",
-		
 		Run: func(cmd *cobra.Command, args []string) {
 			options.Action = core.FileModifyPrivilegeAction
-            utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
+			utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
 		},
 	}
 
 	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "file to been change privilege")
 	//cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "dir to been change privilege")
 	cmd.Flags().Uint32VarP(&options.Privilege, "privilege", "p", 0, "privilege to been update")
+
+	return cmd
+}
+
+func NewFileDeleteCommand(dep fx.Option, options *core.FileCommand) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "delete file",
+
+		Run: func(cmd *cobra.Command, args []string) {
+			options.Action = core.FileDeleteAction
+			options.CompleteDefaults()
+			utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
+		},
+	}
+
+	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "delete file based on filename")
+	cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "delete directory based on dirname")
+	cmd.Flags().StringVarP(&options.DestDir, "destdir", "", "", "delete a file or directory to the specified destdir")
+
+	return cmd
+}
+
+func NewFileRenameCommand(dep fx.Option, options *core.FileCommand) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rename",
+		Short: "rename file",
+
+		Run: func(cmd *cobra.Command, args []string) {
+			options.Action = core.FileRenameAction
+			utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
+		},
+	}
+
+	cmd.Flags().StringVarP(&options.SourceFile, "source-file", "s", "", "the source file/dir of rename")
+	cmd.Flags().StringVarP(&options.DstFile, "dst-file", "d", "", "the destination file/dir of rename")
 
 	return cmd
 }
