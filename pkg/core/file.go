@@ -53,8 +53,8 @@ func (n *FileCommand) validFileCreate() error {
 }
 
 func (n *FileCommand) validFileModify() error {
-	if len(n.FileName) == 0 && len(n.DirName) == 0 {
-		return errors.New("filename and dirname can not all null")
+	if len(n.FileName) == 0 {
+		return errors.New("filename can not null")
 	}
 
 	if n.Privilege == 0 {

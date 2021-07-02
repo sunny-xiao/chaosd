@@ -15,22 +15,19 @@ package chaosd
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"strconv"
+	"github.com/chaos-mesh/chaosd/pkg/core"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"go.uber.org/zap"
-	"github.com/chaos-mesh/chaosd/pkg/core"
+	"os"
+	"os/exec"
 )
 
 type fileAttack struct{}
 
 var FileAttack AttackType = fileAttack{}
 
-var FileMode int
-
-var DirMode int
+var FileMode string
 
 func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error) {
 	attack := options.(*core.FileCommand)
@@ -68,32 +65,24 @@ func (s *Server) createFile(attack *core.FileCommand, uid string) error {
 
 func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error {
 
-	//pri, _ := fmt.Printf("%04d", attack.Privilege)
-
-	if len(attack.FileName) != 0 {
-		/*var err error
-        FileMode, err = getFileMode(attack.FileName)
-        if err != nil {
-        	return errors.WithStack(err)
-		}*/
-
-		t := os.FileMode(attack.Privilege)
-		fmt.Println(t)
-
-		if err := os.Chmod(attack.FileName, t); err != nil {
-			return errors.WithStack(err)
-		}
-	}else if len(attack.DirName) != 0 {
-		/*var err error
-		DirMode, err = getFileMode(attack.DirName)
-		if err != nil {
-			return errors.WithStack(err)
-		}*/
-
-		if err := os.Chmod(attack.DirName, os.FileMode(attack.Privilege)); err != nil {
-			return errors.WithStack(err)
-		}
+	cmdStr := "stat -c %a" + " "+ attack.FileName
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Error(string(output), zap.Error(err))
+		return errors.WithStack(err)
 	}
+	FileMode = string(output)
+
+	cmdStr = fmt.Sprintf("chmod %d %s", attack.Privilege, attack.FileName)
+
+	cmd = exec.Command("bash", "-c", cmdStr)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		log.Error(string(output), zap.Error(err))
+		return errors.WithStack(err)
+	}
+	log.Info(string(output))
 
 	return nil
 }
@@ -136,30 +125,12 @@ func (s *Server) recoverCreateFile(attack *core.FileCommand) error {
 
 func (s *Server) recoverModifyPrivilege(attack *core.FileCommand) error {
 
-	if len(attack.FileName) != 0 {
-		if err := os.Chmod(attack.FileName, os.FileMode(FileMode)); err != nil {
-			return errors.WithStack(err)
-		}
-	}else if len(attack.DirName) != 0 {
-		if err := os.Chmod(attack.FileName, os.FileMode(DirMode)); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
-	return nil
-}
-
-
-func getFileMode(path string) (int, error) {
-	cmd := fmt.Sprintf("stat -c %a %s", path)
-	exeCmd := exec.Command("/bin/bash", "-c", cmd)
-	stdout, err := exeCmd.CombinedOutput()
+	cmdStr := fmt.Sprintf("chmod %s %s", FileMode, attack.FileName)
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Error(exeCmd.String()+string(stdout), zap.Error(err))
-		return 0, errors.WithStack(err)
+		log.Error(string(output), zap.Error(err))
+		return errors.WithStack(err)
 	}
-
-	s := string(stdout)
-	d, _ := strconv.Atoi(s)
-	return d, nil
+	return nil
 }

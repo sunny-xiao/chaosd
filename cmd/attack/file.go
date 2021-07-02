@@ -79,7 +79,7 @@ func NewFileModifyPrivilegeCommand(dep fx.Option, options *core.FileCommand) *co
 	}
 
 	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "file to been change privilege")
-	cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "dir to been change privilege")
+	//cmd.Flags().StringVarP(&options.DirName, "dirname", "d", "", "dir to been change privilege")
 	cmd.Flags().Uint32VarP(&options.Privilege, "privilege", "p", 0, "privilege to been update")
 
 	return cmd
