@@ -14,6 +14,7 @@
 package chaosd
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/chaos-mesh/chaosd/pkg/core"
 	"github.com/pingcap/errors"
@@ -21,13 +22,15 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
 type fileAttack struct{}
 
 var FileAttack AttackType = fileAttack{}
 
-var FileMode string
+var FileMode int
 
 func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error) {
 	attack := options.(*core.FileCommand)
@@ -47,6 +50,10 @@ func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error)
 		}
 	case core.FileRenameAction:
 		if err = env.Chaos.renameFile(attack, env.AttackUid); err != nil {
+			return errors.WithStack(err)
+		}
+	case core.FileAppendAction:
+		if err = env.Chaos.appendFile(attack, env.AttackUid); err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -80,7 +87,11 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 		log.Error(string(output), zap.Error(err))
 		return errors.WithStack(err)
 	}
-	FileMode = string(output)
+	FileMode, err = strconv.Atoi(string(output))
+	if err != nil {
+		log.Error(string(output), zap.Error(err))
+		return errors.WithStack(err)
+	}
 
 	cmdStr = fmt.Sprintf("chmod %d %s", attack.Privilege, attack.FileName)
 
@@ -126,6 +137,95 @@ func (s *Server) renameFile(attack *core.FileCommand, uid string) error {
 	return nil
 }
 
+//while the input content has many lines, "\n" is the line break
+func (s *Server) appendFile(attack *core.FileCommand, uid string) error {
+
+	//实验开始前，检测test.dat文件是否存在，如果存在，删除
+    if fileExist("test.dat") {
+    	if err := deleteTestFile("test.dat"); err != nil {
+    		return errors.WithStack(err)
+		}
+	}
+
+	println("fileExist has run success")
+	//1. 插入的字符串转为文件
+	file, err := generateFile(attack.Data)
+	if err != nil {
+		println("generate file error")
+		log.Error("generate file from input data err", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	println("generate file success")
+	//2. 生成的文件插入指定的行 利用sed -i
+	c := fmt.Sprintf("%d r %s", attack.LineNo, file.Name())
+	cmdStr := fmt.Sprintf("sed -i '%s' %s", c, attack.FileName)
+	fmt.Println("cmd str is %s", cmdStr)
+
+	for i := 0; i < attack.Count; i++ {
+
+		cmd := exec.Command("bash", "-c", cmdStr)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			println("append data exec sed error")
+			log.Error(cmd.String()+string(output), zap.Error(err))
+			return errors.WithStack(err)
+		}
+		log.Info(string(output))
+	}
+
+	return nil
+}
+
+func deleteTestFile(file string) error {
+
+	cmdStr := fmt.Sprintf("rm -rf %s", file)
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Print("delete test file error")
+		log.Error(string(output), zap.Error(err))
+		return errors.WithStack(err)
+	}
+	log.Info(string(output))
+
+	return nil
+}
+
+func fileExist(file string) bool {
+	_, err := os.Lstat(file)
+	return !os.IsNotExist(err)
+}
+
+func generateFile(s string) (*os.File, error) {
+	fileName := "test.dat"
+	dstFile,err := os.Create(fileName)
+	if err!=nil{
+		fmt.Println(err.Error())
+		return dstFile, err
+	}
+	defer dstFile.Close()
+	dstFile.WriteString(s)
+	return dstFile, nil
+}
+
+func writeMaptoFile(s string) error {
+	fileName := "test.dat"
+	str_arr := strings.Split(s, "\n")
+	f, err := os.Create(fileName)
+	if err != nil {
+		fmt.Printf("create map file error: %v\n", err)
+		return err
+	}
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	for _, str := range str_arr {
+		fmt.Fprintln(w, str)
+	}
+	return w.Flush()
+}
+
 func (fileAttack) Recover(exp core.Experiment, env Environment) error {
 	config, err := exp.GetRequestCommand()
 	if err != nil {
@@ -150,6 +250,10 @@ func (fileAttack) Recover(exp core.Experiment, env Environment) error {
 		if err = env.Chaos.recoverRenameFile(attack); err != nil {
 			return errors.WithStack(err)
 		}
+	case core.FileAppendAction:
+		if err = env.Chaos.recoverAppendFile(attack); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	return nil
 }
@@ -172,7 +276,7 @@ func (s *Server) recoverCreateFile(attack *core.FileCommand) error {
 
 func (s *Server) recoverModifyPrivilege(attack *core.FileCommand) error {
 
-	cmdStr := fmt.Sprintf("chmod %s %s", FileMode, attack.FileName)
+	cmdStr := fmt.Sprintf("chmod %d %s", FileMode, attack.FileName)
 	cmd := exec.Command("bash", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -206,6 +310,32 @@ func (s *Server) recoverRenameFile(attack *core.FileCommand) error {
 
 	if err != nil {
 		log.Error("recover rename file/dir faild", zap.Error(err))
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func (s *Server) recoverAppendFile(attack *core.FileCommand) error {
+
+	//实验结束的时候，将生成的临时文件test.dat删除
+	if fileExist("test.dat") {
+		if err := deleteTestFile("test.dat"); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	//计算插入的行数
+	linesByInput := attack.Count * core.GetFileNumber(attack.FileName)
+
+	//从插入的行开始删除，这么多行
+	c := fmt.Sprintf("%d,%dd", attack.LineNo+1, attack.LineNo+linesByInput)
+	cmdStr := fmt.Sprintf("sed -i '%s' %s", c, attack.FileName)
+
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Error(string(output), zap.Error(err))
 		return errors.WithStack(err)
 	}
 

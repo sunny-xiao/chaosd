@@ -44,6 +44,7 @@ func NewFileAttackCommand() *cobra.Command {
 		NewFileModifyPrivilegeCommand(dep, options),
 		NewFileDeleteCommand(dep, options),
 		NewFileRenameCommand(dep, options),
+		NewFileAppendCommand(dep, options),
 	)
 
 	return cmd
@@ -117,6 +118,25 @@ func NewFileRenameCommand(dep fx.Option, options *core.FileCommand) *cobra.Comma
 
 	cmd.Flags().StringVarP(&options.SourceFile, "source-file", "s", "", "the source file/dir of rename")
 	cmd.Flags().StringVarP(&options.DstFile, "dst-file", "d", "", "the destination file/dir of rename")
+
+	return cmd
+}
+
+func NewFileAppendCommand(dep fx.Option, options *core.FileCommand) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "append",
+		Short: "append file",
+
+		Run: func(cmd *cobra.Command, args []string) {
+			options.Action = core.FileAppendAction
+			utils.FxNewAppWithoutLog(dep, fx.Invoke(commonFileAttackFunc)).Run()
+		},
+	}
+
+	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "append data to the file")
+	cmd.Flags().StringVarP(&options.Data, "data", "d", "", "append data")
+	cmd.Flags().IntVarP(&options.Count, "count", "c", 0, "append count")
+	cmd.Flags().IntVarP(&options.LineNo, "line", "l", 0, "the start line to append")
 
 	return cmd
 }

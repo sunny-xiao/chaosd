@@ -14,9 +14,12 @@
 package core
 
 import (
+	"bufio"
 	"encoding/json"
-
 	"github.com/pingcap/errors"
+	"github.com/pingcap/log"
+	"go.uber.org/zap"
+	"os"
 )
 
 type FileCommand struct {
@@ -28,6 +31,9 @@ type FileCommand struct {
 	Privilege  uint32
 	SourceFile string
 	DstFile    string
+	Data       string
+	Count      int
+	LineNo     int
 }
 
 var _ AttackConfig = &FileCommand{}
@@ -37,6 +43,7 @@ const (
 	FileModifyPrivilegeAction = "modify"
 	FileDeleteAction          = "delete"
 	FileRenameAction          = "rename"
+	FileAppendAction          = "append"
 )
 
 func (n *FileCommand) Validate() error {
@@ -52,6 +59,8 @@ func (n *FileCommand) Validate() error {
 		return n.validFileDelete()
 	case FileRenameAction:
 		return n.validFileRename()
+	case FileAppendAction:
+		return n.valieFileAppend()
 	default:
 		return errors.Errorf("file action %s not supported", n.Action)
 	}
@@ -93,12 +102,26 @@ func (n *FileCommand) validFileRename() error {
 	return nil
 }
 
+func (n *FileCommand) valieFileAppend() error {
+	if len(n.FileName) == 0 {
+		return errors.New("filename can not null")
+	}
+
+	if len(n.Data) == 0 {
+		return errors.New("append data can not null")
+	}
+
+	return nil
+}
+
 func (n *FileCommand) CompleteDefaults() {
 	switch n.Action {
 	case FileCreateAction:
 		n.setDefaultForFileCreate()
 	case FileDeleteAction:
 		n.setDefaultForFileDelete()
+	case FileAppendAction:
+		n.setDefaultForFileAppend()
 	}
 }
 
@@ -115,6 +138,35 @@ func (n *FileCommand) setDefaultForFileDelete() {
 	if len(n.DestDir) > 0 {
 		n.DestDir = n.DestDir + "/"
 	}
+}
+
+func (n *FileCommand) setDefaultForFileAppend() {
+	if n.Count == 0 {
+		n.Count = 1
+	}
+
+	fileNumber := GetFileNumber(n.FileName)
+	if n.LineNo == 0 {
+       n.LineNo = fileNumber + 1
+	}
+}
+
+func GetFileNumber(fileName string) int {
+	file, err := os.Open(fileName)
+	if err != nil{
+		log.Error("open file error", zap.Error(err))
+	}
+	defer file.Close()
+	fd := bufio.NewReader(file)
+	count := 0
+	for {
+		_, err := fd.ReadString('\n')
+		if err!= nil{
+			break
+		}
+		count++
+	}
+	return count
 }
 
 func (n FileCommand) RecoverData() string {
