@@ -135,8 +135,8 @@ func NewFileAppendCommand(dep fx.Option, options *core.FileCommand) *cobra.Comma
 
 	cmd.Flags().StringVarP(&options.FileName, "filename", "f", "", "append data to the file")
 	cmd.Flags().StringVarP(&options.Data, "data", "d", "", "append data")
-	cmd.Flags().IntVarP(&options.Count, "count", "c", 0, "append count")
-	cmd.Flags().IntVarP(&options.LineNo, "line", "l", 0, "the start line to append")
+	cmd.Flags().IntVarP(&options.Count, "count", "c", 1, "append count with default value is 1")
+	cmd.Flags().IntVarP(&options.LineNo, "line", "l", 1, "the start line to append with default value is 1")
 
 	return cmd
 }

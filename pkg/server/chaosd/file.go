@@ -14,7 +14,6 @@
 package chaosd
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/chaos-mesh/chaosd/pkg/core"
 	"github.com/pingcap/errors"
@@ -140,38 +139,58 @@ func (s *Server) renameFile(attack *core.FileCommand, uid string) error {
 //while the input content has many lines, "\n" is the line break
 func (s *Server) appendFile(attack *core.FileCommand, uid string) error {
 
-	//实验开始前，检测test.dat文件是否存在，如果存在，删除
-    if fileExist("test.dat") {
-    	if err := deleteTestFile("test.dat"); err != nil {
-    		return errors.WithStack(err)
+	if fileEmpty(attack.FileName) {
+
+		for i := 0; i < attack.Count; i++ {
+			cmdStr := fmt.Sprintf("echo -e '%s' >> %s", attack.Data, attack.FileName)
+			cmd := exec.Command("bash", "-c", cmdStr)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				println("append data exec echo error")
+				log.Error(cmd.String()+string(output), zap.Error(err))
+				return errors.WithStack(err)
+			}
+			log.Info(string(output))
 		}
-	}
 
-	println("fileExist has run success")
-	//1. 插入的字符串转为文件
-	file, err := generateFile(attack.Data)
-	if err != nil {
-		println("generate file error")
-		log.Error("generate file from input data err", zap.Error(err))
-		return errors.WithStack(err)
-	}
+	} else {
 
-	println("generate file success")
-	//2. 生成的文件插入指定的行 利用sed -i
-	c := fmt.Sprintf("%d r %s", attack.LineNo, file.Name())
-	cmdStr := fmt.Sprintf("sed -i '%s' %s", c, attack.FileName)
-	fmt.Println("cmd str is %s", cmdStr)
+		//实验开始前，检测test.dat文件是否存在，如果存在，删除
+		if fileExist("test.dat") {
+			if err := deleteTestFile("test.dat"); err != nil {
+				return errors.WithStack(err)
+			}
+		}
 
-	for i := 0; i < attack.Count; i++ {
+		println("fileExist has run success")
 
-		cmd := exec.Command("bash", "-c", cmdStr)
-		output, err := cmd.CombinedOutput()
+		//1. 插入的字符串转为文件
+		file, err := generateFile(attack.Data)
 		if err != nil {
-			println("append data exec sed error")
-			log.Error(cmd.String()+string(output), zap.Error(err))
+			println("generate file error")
+			log.Error("generate file from input data err", zap.Error(err))
 			return errors.WithStack(err)
 		}
-		log.Info(string(output))
+
+		println("generate file success")
+
+		//2. 生成的文件插入指定的行 利用sed -i
+		c := fmt.Sprintf("%d r %s", attack.LineNo, file.Name())
+		cmdStr := fmt.Sprintf("sed -i '%s' %s", c, attack.FileName)
+		fmt.Println("cmd str is %s", cmdStr)
+
+		for i := 0; i < attack.Count; i++ {
+
+			cmd := exec.Command("bash", "-c", cmdStr)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				println("append data exec cat error")
+				log.Error(cmd.String()+string(output), zap.Error(err))
+				return errors.WithStack(err)
+			}
+			log.Info(string(output))
+		}
+
 	}
 
 	return nil
@@ -192,9 +211,20 @@ func deleteTestFile(file string) error {
 	return nil
 }
 
-func fileExist(file string) bool {
-	_, err := os.Lstat(file)
+func fileExist(fileName string) bool {
+	_, err := os.Lstat(fileName)
 	return !os.IsNotExist(err)
+}
+
+func fileEmpty(fileName string) bool {
+	file, err := os.Stat(fileName)
+	if err != nil {
+		log.Error("get file is empty err", zap.Error(err))
+	}
+	if file.Size() ==0 {
+		return true
+	}
+	return false
 }
 
 func generateFile(s string) (*os.File, error) {
@@ -205,25 +235,9 @@ func generateFile(s string) (*os.File, error) {
 		return dstFile, err
 	}
 	defer dstFile.Close()
-	dstFile.WriteString(s)
+	strNew := strings.Replace(s, `\n`, "\n", -1)
+	dstFile.WriteString(strNew)
 	return dstFile, nil
-}
-
-func writeMaptoFile(s string) error {
-	fileName := "test.dat"
-	str_arr := strings.Split(s, "\n")
-	f, err := os.Create(fileName)
-	if err != nil {
-		fmt.Printf("create map file error: %v\n", err)
-		return err
-	}
-	defer f.Close()
-
-	w := bufio.NewWriter(f)
-	for _, str := range str_arr {
-		fmt.Fprintln(w, str)
-	}
-	return w.Flush()
 }
 
 func (fileAttack) Recover(exp core.Experiment, env Environment) error {
