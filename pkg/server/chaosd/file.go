@@ -29,8 +29,6 @@ type fileAttack struct{}
 
 var FileAttack AttackType = fileAttack{}
 
-var FileMode int
-
 func (fileAttack) Attack(options core.AttackConfig, env Environment) (err error) {
 	attack := options.(*core.FileCommand)
 
@@ -88,7 +86,7 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 	}
 
 	str1 := strings.Replace(string(output), "\n", "", -1)
-	FileMode, err = strconv.Atoi(string(str1))
+	attack.FileMode, err = strconv.Atoi(string(str1))
 	if err != nil {
 		log.Error(str1, zap.Error(err))
 		return errors.WithStack(err)
@@ -292,7 +290,7 @@ func (s *Server) recoverCreateFile(attack *core.FileCommand) error {
 
 func (s *Server) recoverModifyPrivilege(attack *core.FileCommand) error {
 
-	cmdStr := fmt.Sprintf("chmod %d %s", FileMode, attack.FileName)
+	cmdStr := fmt.Sprintf("chmod %d %s", attack.FileMode, attack.FileName)
 	cmd := exec.Command("bash", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

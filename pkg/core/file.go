@@ -34,6 +34,7 @@ type FileCommand struct {
 	Data       string
 	Count      int
 	LineNo     int
+	FileMode   int
 }
 
 var _ AttackConfig = &FileCommand{}
