@@ -86,9 +86,11 @@ func (s *Server) modifyFilePrivilege(attack *core.FileCommand, uid string) error
 		log.Error(string(output), zap.Error(err))
 		return errors.WithStack(err)
 	}
-	FileMode, err = strconv.Atoi(string(output))
+
+	str1 := strings.Replace(string(output), "\n", "", -1)
+	FileMode, err = strconv.Atoi(string(str1))
 	if err != nil {
-		log.Error(string(output), zap.Error(err))
+		log.Error(str1, zap.Error(err))
 		return errors.WithStack(err)
 	}
 
