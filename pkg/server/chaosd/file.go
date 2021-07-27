@@ -155,40 +155,56 @@ func (s *Server) appendFile(attack *core.FileCommand, uid string) error {
 
 	} else {
 
-		//实验开始前，检测test.dat文件是否存在，如果存在，删除
-		if fileExist("test.dat") {
-			if err := deleteTestFile("test.dat"); err != nil {
-				return errors.WithStack(err)
+		if attack.LineNo == 0 {
+			//在文件头部，第一行插入
+           cmdStr := fmt.Sprintf("sed -i '1i %s' %s", attack.Data, attack.FileName)
+           for i := 0; i < attack.Count; i++ {
+			   cmd := exec.Command("bash", "-c", cmdStr)
+			   output, err := cmd.CombinedOutput()
+			   if err != nil {
+				   log.Error(cmd.String()+string(output), zap.Error(err))
+				   return errors.WithStack(err)
+			   }
+			   log.Info(string(output))
+		   }
+
+		} else {
+			//这种方式只能在第一行之后插入
+			//实验开始前，检测test.dat文件是否存在，如果存在，删除
+			if fileExist("test.dat") {
+				if err := deleteTestFile("test.dat"); err != nil {
+					return errors.WithStack(err)
+				}
 			}
-		}
 
-		println("fileExist has run success")
+			println("fileExist has run success")
 
-		//1. 插入的字符串转为文件
-		file, err := generateFile(attack.Data)
-		if err != nil {
-			println("generate file error")
-			log.Error("generate file from input data err", zap.Error(err))
-			return errors.WithStack(err)
-		}
-
-		println("generate file success")
-
-		//2. 生成的文件插入指定的行 利用sed -i
-		c := fmt.Sprintf("%d r %s", attack.LineNo, file.Name())
-		cmdStr := fmt.Sprintf("sed -i '%s' %s", c, attack.FileName)
-		fmt.Println("cmd str is %s", cmdStr)
-
-		for i := 0; i < attack.Count; i++ {
-
-			cmd := exec.Command("bash", "-c", cmdStr)
-			output, err := cmd.CombinedOutput()
+			//1. 插入的字符串转为文件
+			file, err := generateFile(attack.Data)
 			if err != nil {
-				println("append data exec cat error")
-				log.Error(cmd.String()+string(output), zap.Error(err))
+				println("generate file error")
+				log.Error("generate file from input data err", zap.Error(err))
 				return errors.WithStack(err)
 			}
-			log.Info(string(output))
+
+			println("generate file success")
+
+			//2. 生成的文件插入指定的行 利用sed -i
+			c := fmt.Sprintf("%d r %s", attack.LineNo, file.Name())
+			cmdStr := fmt.Sprintf("sed -i '%s' %s", c, attack.FileName)
+			fmt.Println("cmd str is %s", cmdStr)
+
+			for i := 0; i < attack.Count; i++ {
+
+				cmd := exec.Command("bash", "-c", cmdStr)
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					println("append data exec cat error")
+					log.Error(cmd.String()+string(output), zap.Error(err))
+					return errors.WithStack(err)
+				}
+				log.Info(string(output))
+			}
 		}
 
 	}
